@@ -222,6 +222,7 @@ Psas_func <- function(jbnr,
 library(tidyverse)
 library(readxl)
 library(ggrepel)
+library(patchwork)
  
 # Marginal effects NLES5: -----
 # We vary each input variable across its observed range while keeping all other variables fixed at their mean (for continuous) or mode (for categorical). This allows us to isolate the effect of each variable on the predicted leaching (L) and visualize it in a faceted plot.
@@ -376,99 +377,64 @@ print(p_marginal)
 
 ## --- 5. Plotting: Separated Percolation Marginal Effects ----
 
-### 5.1 Continuous Variables Plot ----
-p_marginal_cont <- final_results_df |>
-  filter(!Is_Categorical & Component=="Percolation") |> 
+p_marginal_cont_sub <- final_results_df |>
+  filter(!Is_Categorical & Component %in% c("Percolation" ,"Soil")) |> 
+  mutate(varied_variable = factor(varied_variable, levels = c("APb", "AAa", "AAb", "CU"))) |>
   ggplot(aes(x = original_value, y = L, color = Component)) +
   geom_line(linewidth = 1) +
-  labs(
-    title = "Marginal Effects: Continuous Parameters",
-    subtitle = "Effect on Annual Leaching (L) while other inputs are fixed at mean/mode",
-    x = "Input Variable Value",
-    y = "Predicted Annual Leaching (L)"
-  ) +
   facet_wrap(~ varied_variable, scales = "free_x", ncol = 4) +
   scale_color_manual(values = component_colors) +
+  labs(x = "Percolation (mm)", 
+       y = "L (kg N/ ha)") +
   theme_minimal() +
   theme(
     strip.text = element_text(size = 10, face = "bold"),
     axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
-    axis.text.y = element_text(size = 8),
-    plot.title = element_text(hjust = 0.5, face = "bold"),
-    plot.subtitle = element_text(hjust = 0.5, size = 9, color = "grey40"),
+    panel.grid.minor = element_blank(),
     legend.position = "bottom"
   )
 
-print(p_marginal_cont)
-ggsave("marginal_effects_continuous.png", plot = p_marginal_cont, units = "mm", width = 250, height = 200, dpi = 300)
-
-
-### 5.2 Categorical Variables Plot ----
-
-# Map the numeric codes to crop names
-recode_map <- c(
-  "M-1" = "Winter cereal", "M-2" = "Spring cereal", "M-3" = "Grain-legume mix", 
-  "M-4" = "Grass and grass-clover", "M-5" = "Grass for seed", "M-6" = "Set-aside", 
-  "M-8" = "Beet and hemp", "M-9" = "Maize and potato", "M-10" = "Winter Oilseed rape", 
-  "M-11" = "Winter cereal after grass", "M-12" = "Maize after grass", 
-  "M-13" = "Spring cereal after grass", "M-14" = "Grain legume & Spring oilseed rape",
-  
-  "MP-1" = "Winter cereal", "MP-2" = "Other crops", "MP-3" = "Grass or grass-clover", 
-  "MP-12" = "Spring or Winter crops after grass",
-  
-  "W-1" = "Winter cereal", "W-2" = "Bare Soil", "W-3" = "Autumn cultivation", 
-  "W-4" = "Cover crop", "W-5" = "Weeds, volunteers", "W-6" = "Winter oilseed rape, grass-clover", 
-  "W-8" = "Winter cereal after grass", "W-9" = "Grass ploughed late autumn/winter",
-  
-  "WP-1" = "Winter cereal", "WP-2" = "Bare soil", 
-  "WP-3" = "Grass-clover and Winter oilseed rape ", "WP-4" = "Cover grass", 
-  "WP-5" = "Grass for seeds and set aside", "WP-6" = "Beets and hemp", 
-  "WP-7" = "Bare soil after maize and potato", 
-  "WP-11" = "Grass followed by spring cereal, maize or beets",
-  
-  "WC-1" = "Crops w/ large N uptake", "WC-2" = "Crops w/ low/moderate N uptake",
-  "jbnr-3" = "Sandy soil (JB 1-3)", "jbnr-4" = "Loamy soil (JB >3)"
-)
-
-# Prepare data and apply names
-cat_plot_data <- final_results_df |>
+# --- 2. Prepare Categorical Plot Object ---
+p_marginal_cat_sub <- final_results_df |>
   filter(Is_Categorical) |>
-  mutate(
-    # Create a unique key like "M-1" or "WP-11" to match the dictionary
-    temp_key = paste0(varied_variable, "-", as.character(original_value)),
-    Cat_Name = recode(temp_key, !!!recode_map, .default = as.character(original_value))
-  )
-
-p_marginal_cat <- cat_plot_data |>
   filter(Component=="Percolation") |> 
-  #filter(Component=="Crop") |> 
-  # reorder ensures the categories appear in their original numeric order rather than alphabetically
-  ggplot(aes(x = reorder(Cat_Name, original_value), y = L, color = Component)) +
+  ggplot(aes(x = original_value, y = L, color = Component)) +
   geom_point(size = 3.5) +
-  geom_segment(aes(x = reorder(Cat_Name, original_value), xend = reorder(Cat_Name, original_value), y = 0, yend = L), linetype = "dotted") +
-  labs(
-    title = "Marginal Effects: Categorical Parameters",
-    subtitle = "Effect on Annual Leaching (L) while other inputs are fixed at mean/mode",
-    x = "",
-    y = "Predicted Annual Leaching (L)"
-  ) +
-  facet_wrap(~ varied_variable, scales = "free", ncol = 2) +
+  geom_segment(aes(x = original_value, 
+                   xend = original_value, 
+                   y = 0, yend = L), linetype = "dotted") +
+  facet_wrap(~ varied_variable, scales = "free", ncol = 1) +
   scale_color_manual(values = component_colors) +
-  coord_flip() + # Flips the plot so long crop names are perfectly readable on the Y axis
-  theme_light() +
+  #coord_flip() +
+  labs(x = "JB category", y = "L (kg N/ ha)") +
+  theme_minimal() +
   theme(
-    strip.text = element_text(size = 10, face = "bold"),
+    strip.text = element_blank(),
     axis.text.y = element_text(size = 9),
-    axis.text.x = element_text(size = 9),
-    plot.title = element_text(hjust = 0.5, face = "bold"),
-    plot.subtitle = element_text(hjust = 0.5, size = 9, color = "grey40"),
-    legend.position = "bottom",
-    panel.grid.major.y = element_blank() # Clean up horizontal lines since we use dotted segments
+    panel.grid.minor = element_blank(),
+    legend.title = element_blank(),
+    legend.text = element_blank()
   )
 
-print(p_marginal_cat)
-# ggsave("marginal_effects_categorical.png", plot = p_marginal_cat, units = "mm", 
-#        width = 250, height = 280, dpi = 300)
+# --- 3. Assemble Composite Figure ---
+# We use & to apply themes to both plots and plot_annotation for a single shared title
+p_composite <- (p_marginal_cont_sub + p_marginal_cat_sub) + 
+  plot_layout(nrow = 1, widths = c(3.5, 1), guides = "collect") +
+  plot_annotation(
+    #title = "Marginal effects of Percolation & Soil components inputs",
+    subtitle = "Annual Leaching (L) response while all other inputs are fixed at mean/mode",
+    theme = theme(
+      plot.title = element_text(size = 12, face = "bold", hjust = 0.5),
+      plot.subtitle = element_text(size = 10, color = "grey40", hjust = 0.5)
+    )
+  ) & 
+  theme(legend.position = "bottom")
+
+# Display and Save
+print(p_composite)
+
+ggsave("unified_marginal_effects.png", plot = p_composite, 
+       units = "mm", width = 300, height = 180, dpi = 300)
 
 # Exploratory percolation distribution ----
 
@@ -478,38 +444,75 @@ soil_palette <- c(
   "Loamy (JB > 3)"  = "#8F4513"  
 )
 
-base_data |> 
-  mutate(JB =ifelse(jbnr <= 3, "Sandy (JB <= 3)","Loamy (JB > 3)")) |> 
+# 1. Prepare Data and Calculate Full Statistics (Q1, Median, Mean, Q3)
+plot_data <- base_data |> 
+  mutate(JB = ifelse(jbnr <= 3, "Sandy (JB <= 3)", "Loamy (JB > 3)")) |> 
   pivot_longer(cols = c(AAa, AAb, APb), 
                names_to = "Percolation_Var", values_to = "Value") |> 
-  ggplot(aes(x = Value, fill = JB)) +
-  geom_density(position = "dodge", bins = 30, alpha = 0.7) +
-  facet_wrap(~ Percolation_Var, scales = "free_x") +
-  labs(
-    title = "Distribution of Percolation Variables",
-    x = "Percolation Value (mm)",
-    y = "Frequency",
-    fill = "Variable"
-  ) +
-  scale_fill_manual(values = soil_palette) +
-  theme_minimal()
+  mutate(Percolation_Var = factor(Percolation_Var,
+                                  levels = c("APb","AAa", "AAb")))
+                                
+stats_data <- plot_data |> 
+  group_by(Percolation_Var, JB) |> 
+  summarize(
+    Q1 = quantile(Value, 0.25, na.rm = TRUE),
+    Med = median(Value, na.rm = TRUE),
+    Mean_Val = mean(Value, na.rm = TRUE),
+    Q3 = quantile(Value, 0.75, na.rm = TRUE),
+    .groups = "drop"
+  ) |> 
+  mutate(stat_label = paste0("Q1: ", round(Q1, 1), 
+                             "\nMed: ", round(Med, 1), 
+                             "\nMean: ", round(Mean_Val, 1),
+                             "\nQ3: ", round(Q3, 1)))
 
-base_data |> 
-  mutate(JB =ifelse(jbnr <= 3, "Sandy (JB <= 3)","Loamy (JB > 3)")) |> 
-  pivot_longer(cols = c(AAa, AAb, APb), 
-               names_to = "Percolation_Var", values_to = "Value") |> 
-  ggplot(aes(y = Value, x=JB, fill = JB)) +
-  geom_boxplot(position = "dodge", bins = 30, alpha = 0.7) +
-  facet_wrap(~ Percolation_Var, scales = "free_x") +
-  labs(
-    title = "Distribution of Percolation Variables",
-    y = "Percolation Value (mm)",
-    x = "JB Category",
-    fill = "JB Category"
-  ) +
+# 2. Upper Panel: Density Plots (Mean Lines matching Aesthetics)
+p_density <- ggplot(plot_data, 
+                    aes(x = Value, 
+                        fill = JB, color = JB)) +
+  geom_density(alpha = 0.6) +
+  # Add vertical lines for the Mean that respect the soil_palette colors
+  geom_vline(data = stats_data, 
+             aes(xintercept = Mean_Val, color = JB), 
+             linetype = "dashed", linewidth = 0.8) +
+  facet_wrap(~ Percolation_Var, scales = "free") +
   scale_fill_manual(values = soil_palette) +
-  theme_minimal()+
-  theme(legend.position = "none")
+  scale_color_manual(values = soil_palette) +
+  labs(#title = "Distribution of Percolation Variables",
+       x = NULL, y = "Density", fill = "Soil Type", color = "Soil Type") +
+  theme_minimal() +
+  theme(legend.position = "none",
+        panel.grid.minor = element_blank())
+
+# 3. Lower Panel: Boxplots (Mean as a high-contrast White Diamond)
+p_box <- ggplot(plot_data, aes(x = JB, y = Value, col=JB, fill = JB)) +
+  geom_boxplot(alpha = 0.7, outlier.size = 1) +
+  # Use a white diamond for the mean to keep it distinct from the median line
+  stat_summary(fun = mean, geom = "point", shape = 21, size = 1.5, 
+               fill = "white", color = "black", stroke = 1) +
+  geom_text(data = stats_data, 
+            aes(x = JB, y = Inf, label = stat_label), 
+            vjust = 1.1, hjust=1.2, size = 2.6, fontface = "bold", 
+            inherit.aes = FALSE) +
+  facet_wrap(~ Percolation_Var, scales = "free_y") +
+  scale_fill_manual(values = soil_palette) +
+  scale_color_manual(values = soil_palette) +
+  labs(x = "Soil Category", y = "Percolation (mm)", fill = "Soil Type") +
+  theme_minimal() +
+  theme(
+    strip.text = element_blank(), 
+    legend.position = "bottom"
+  )
+
+# 4. Combine with Common Legend
+composed_fig <- (p_density / p_box) + 
+  plot_layout(heights = c(1, 1.4), guides = "collect") & 
+  theme(legend.position = "bottom")
+
+print(composed_fig)
+
+ggsave("perc_dist_composite.png", 
+       composed_fig, width = 18, height = 15, dpi = 600)
 
 # Marginal effects for percolation variables only, split by soil type (jbnr) ----
 ## --- 1. Filter for Percolation Continuous Variables ----
@@ -557,51 +560,49 @@ for (var_to_vary in percolation_vars) {
 # Combine results
 perc_comparison_df <- bind_rows(perc_sensitivity_results)
 
-# --- 2. Plotting the Split Curves ---
-p_perc_split <- perc_comparison_df |> 
-  ggplot(aes(x = original_value, y = L, color = soil_type)) +
-  geom_line(linewidth = 1.2) +
+# 1. Define Scaling Factor
+# L is roughly 200 times larger than P_est in NLES5 outputs.
+# We calculate this dynamically based on your actual results.
+ylim_L <- max(perc_comparison_df$L, na.rm = TRUE)
+ylim_P <- max(perc_comparison_df$P_est, na.rm = TRUE)
+scale_factor <- ylim_L / ylim_P
+
+# 2. Create the Dual-Axis Plot
+p_dual_axis <- ggplot(perc_comparison_df, aes(x = original_value)) +
+  # Primary Y-Axis: Annual Leaching (L)
+  geom_line(aes(y = L, color = soil_type), linewidth = 1.2) +
+  
+  # Secondary Y-Axis: P term Estimate (Scaled up to match L's range)
+  geom_line(aes(y = P_est * scale_factor, color = soil_type), 
+            linetype = "dashed", linewidth = 0.8, alpha = 0.7) +
+  
+  # Axis Definitions
+  scale_y_continuous(
+    name = "Predicted Annual Leaching (L)",
+    sec.axis = sec_axis(~ . / scale_factor, name = "P term estimate")
+  ) +
+  
+  # Formatting
+  facet_wrap(~ varied_variable, scales = "free_x") +
+  scale_color_manual(values = soil_palette) +
   labs(
-    title = "Percolation Sensitivity split by Soil Type (jbnr)",
-    subtitle = "Marginal effects on Leaching (L) for Sandy vs Loamy soils",
-    x = "Percolation Value (mm)",
-    y = "Predicted Annual Leaching (L)",
+    #title = "Marginal effects of Percolation by Soil Category",
+    subtitle = "Responses (L & P) while all other inputs are fixed at mean/mode",
+    x = "Percolation (mm)",
     color = "Soil Category"
   ) +
-  facet_wrap(~ varied_variable, scales = "free_x") +
-  scale_color_manual(values = c("Sandy (JB <= 3)" = "#D95F02", "Loamy (JB > 3)" = "#1B9E77")) +
   theme_minimal() +
   theme(
     legend.position = "bottom",
-    strip.text = element_text(face = "bold", size = 11)
-  )
+    strip.text = element_text(face = "bold", size = 11),
+    plot.title = element_text(size = 12, face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(size = 10, color = "grey40", hjust = 0.5)
+    )
 
-print(p_perc_split)
-
-## --- 2. Plotting the Split Curves ----
-p_perc_split_P <- perc_comparison_df |> 
-  ggplot(aes(x = original_value, y = P_est, color = soil_type)) +
-  geom_line(linewidth = 1.2) +
-  labs(
-    title = "Percolation Sensitivity split by Soil Type (jbnr)",
-    subtitle = "Marginal effects on Percolation term for Sandy vs Loamy soils",
-    x = "Percolation Value (mm)",
-    y = "P term Estimate",
-    color = "Soil Category"
-  ) +
-  facet_wrap(~ varied_variable, scales = "free_x") +
-  scale_color_manual(values = c("Sandy (JB <= 3)" = "#D95F02", "Loamy (JB > 3)" = "#1B9E77")) +
-  theme_minimal() +
-  theme(
-    legend.position = "bottom",
-    strip.text = element_text(face = "bold", size = 11)
-  )
-
-print(p_perc_split_P)
+print(p_dual_axis)
 
 ### Point wise check: Is the model actually sensitive to jbnr? ----
-P_func(jbnr = 1, AAa = 400, AAb = 100, APb = 50)
-P_func(jbnr = 4, AAa = 400, AAb = 100, APb = 50)
+P_func(jbnr = 3, AAa = 60, AAb = 350, APb = 350)/P_func(jbnr = 4, AAa = 60, AAb = 350, APb = 350)
 
 
 ## 3. Gap Analysis ----
@@ -619,16 +620,20 @@ soil_gap <- perc_comparison_df |>
 
 # Plot 2: The Gap (Penalty)
 p_gap <- ggplot(soil_gap, aes(x = original_value)) +
-  geom_ribbon(aes(ymin = 0, ymax = L_diff), fill = "#E1AD01", alpha = 0.3) +
-  geom_line(aes(y = L_diff), color = "#8B4513", linewidth = 1) +
+  #geom_ribbon(aes(ymin = 0, ymax = L_diff), fill = "#E1AD01", alpha = 0.3) +
+  geom_line(aes(y = L_diff), color = "#7b92a8", linewidth = 1) +
   facet_wrap(~ varied_variable, scales = "free_x") +
   labs(
-    title = "The 'Sandy Soil Penalty'",
-    subtitle = "Difference in Leaching (L_sandy - L_loamy) across percolation ranges",
-    x = "Percolation Value (mm)",
-    y = "Additional Leaching (kg N/ha)"
+    #title = "The 'Sandy Soil Penalty'",
+    subtitle = "Difference in Leaching (ΔL= L (Sandy) - L (Loamy)) across percolation",
+    x = "Percolation (mm)",
+    y = "Sandy penalty (ΔL; kg N/ha)"
   ) +
-  theme_minimal()
+  theme_minimal()+
+  theme(
+    strip.text = element_text(face = "bold", size = 11),
+    plot.subtitle = element_text(size = 10, color = "grey40", hjust = 0.5),
+  )
 
 print(p_gap)
 
@@ -646,15 +651,24 @@ p_slope_comp <- ggplot(slope_long, aes(x = original_value, y = slope_val, color 
     labels = c("Sandy Sensitivity", "Loamy Sensitivity")
   ) +
   labs(
-    title = "Marginal Sensitivity Comparison",
-    subtitle = "How many kg N/ha are gained/lost per 1mm of additional percolation?",
-    x = "Percolation Value (mm)",
+    #title = "Marginal Sensitivity Comparison",
+    subtitle = "L kg N/ha gained/lost per 1mm of additional percolation",
+    x = "",
     y = "Slope (ΔL / ΔPerc)",
-    color = "Legend"
+    color = "Soil Category"
   ) +
-  theme_minimal() + theme(legend.position = "bottom")
+  theme_minimal() + theme(legend.position = "bottom", plot.subtitle = element_text(size = 10, color = "grey40", hjust = 0.5))
 
 print(p_slope_comp)
+
+p_slope_comp + p_gap + plot_layout(ncol = 1) + plot_annotation(
+  #title = "Comparing the 'Sandy Soil Penalty' to Marginal Sensitivities",
+  #subtitle = "Top: How much more does leaching increase per mm of rain? | Bottom: The actual gap in leaching between soil types",
+  theme = theme(
+    plot.title = element_text(size = 12, face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(size = 10, color = "grey40", hjust = 0.5)
+  )
+)
 
 ## 5 Maximum differences ----
 # Final Summary Stats for Interpretation
@@ -668,3 +682,47 @@ summary_results <- soil_gap |>
   )
 
 print(summary_results)
+
+
+library(tidyverse)
+
+# 1. Identify the 10mm Sensitivity
+# We use the previously calculated slope (dL/dPerc) and multiply by 10
+jump_10mm_data <- soil_gap |>
+  select(varied_variable, original_value, slope_sandy, slope_loamy) |>
+  mutate(
+    Jump_Sandy = slope_sandy * 100,
+    Jump_Loamy = slope_loamy * 100,
+    Difference = Jump_Sandy - Jump_Loamy
+  )
+
+# 2. Visualize the 10mm Jump comparison
+p_jump <- ggplot(jump_10mm_data, aes(x = original_value)) +
+  # Area for Sandy jump
+  geom_area(aes(y = Jump_Sandy, fill = "Sandy (JB <= 3)"), alpha = 0.4) +
+  # Area for Loamy jump
+  geom_area(aes(y = Jump_Loamy, fill = "Loamy (JB > 3)"), alpha = 0.4) +
+  facet_wrap(~ varied_variable, scales = "free_x") +
+  scale_fill_manual(values = soil_palette) +
+  labs(
+    title = "Leaching Response to a 100mm Percolation Event",
+    subtitle = "Additional kg N/ha leached for every 10mm increase in drainage",
+    x = "Baseline Percolation (mm)",
+    y = "Leaching Jump (kg N/ha per +100mm)",
+    fill = "Soil Type"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+print(p_jump)
+
+# 3. Calculate Average Jumps for the Report
+jump_summary <- jump_10mm_data |>
+  group_by(varied_variable) |>
+  summarize(
+    Avg_Jump_Sandy = mean(Jump_Sandy, na.rm = TRUE),
+    Avg_Jump_Loamy = mean(Jump_Loamy, na.rm = TRUE),
+    Extra_Risk_Sandy = Avg_Jump_Sandy - Avg_Jump_Loamy
+  )
+
+print(jump_summary)
