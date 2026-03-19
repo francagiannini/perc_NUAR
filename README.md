@@ -22,7 +22,7 @@ $$L = \tau \,(Y - 1991) + \left(\mu + {\theta_i}N + C\right)^{k} \,(P \cdot S) \
 
 ## Script Workflow
 
-The analysis is executed through the following structured steps in the R script perc_nles5_R:
+The analysis is executed through the following structured steps in the R script `perc_nles5_R` as described below. The procedure is public input data is available under request:
 
 * 0. NLES5 Functions
   - L function NLES5
