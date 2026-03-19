@@ -1,5 +1,7 @@
-#NLES5 Functions 
-# L function NLES5 -----
+# 0. NLES5 Functions ----
+# following (Børgesen et al., 2020)
+## L function NLES5 -----
+
 nles5 <- function(Y, #Temporal tendency
                   Ntheta, # Nitrogen
                   C, # Crop
@@ -40,7 +42,7 @@ nles5 <- function(Y, #Temporal tendency
   
 }
 
-# N component ----
+### N component ----
 # 1.1 Define the Nitrogen Model Function
 # The model calculates N based on various nitrogen parameters and input variables.
 # N = βt NT + βCS MNCS + βCA MNCA + βudb MNudb + βm1 (M1+M2)/2 + βf0 F0 +
@@ -88,7 +90,7 @@ N_func <- function(
   return(Ntheta)
 }
 
-# C component ----
+### C component ----
 
 
 C_func <- function(M, W, MP, WP) {
@@ -151,7 +153,7 @@ C_func <- function(M, W, MP, WP) {
   return(C)
 }
 
-# S component ----
+### S component ----
 S_func <-  function(P_ler=0.001849, CU){
   
   S <- exp(P_ler*CU)
@@ -159,7 +161,7 @@ S_func <-  function(P_ler=0.001849, CU){
   return(S)
 }
 
-# P component documentation ----
+### P component documentation ----
 P_func <- function(jbnr,
                    AAa, #d1 April–August current year
                    AAb, #d2 Sept–March current year
@@ -188,7 +190,7 @@ P_func <- function(jbnr,
   return(P)
 }
 
-# P component SAS script ----
+### P component SAS script ----
 Psas_func <- function(jbnr,
                       AAa, #d1 April–August current year
                       AAb, #d2 Sept–March current year
@@ -218,16 +220,18 @@ Psas_func <- function(jbnr,
   return(Psas)
 }
 
-# Percolation exercise ==========================================
+
+# 1. Clay and Soil type exercise ==========================================
+
 library(tidyverse)
 library(readxl)
 library(ggrepel)
 library(patchwork)
  
-# Marginal effects NLES5: -----
+## 1.2 Overall Marginal effects NLES5: -----
 # We vary each input variable across its observed range while keeping all other variables fixed at their mean (for continuous) or mode (for categorical). This allows us to isolate the effect of each variable on the predicted leaching (L) and visualize it in a faceted plot.
 
-## --- 1. Load and Prepare Clean Base Data ----
+### 1.2.1.  Load and Prepare Clean Base Data ----
 # We map the raw dataset directly to the variable names expected by the functions 
 # so we don't need complex translation vectors later.
 sasoutput <- read_excel("Scenarier20190909B4_found0325.xls") |>
@@ -255,7 +259,8 @@ base_data <- sasoutput |>
     CU = CU
   ) |> drop_na()
 
-## --- 2. Helper functions & Fixed Values ----
+
+### 1.2.2. Helper functions & Fixed Values ----
 get_mode <- function(v) {
   uniqv <- unique(na.omit(v))
   uniqv[which.max(tabulate(match(v, uniqv)))]
@@ -274,7 +279,8 @@ for (col_name in names(base_data)) {
   }
 }
 
-## --- 3. Component and Color Definitions ----
+
+### 1.2.3. Component and Color Definitions ----
 component_mapping <- c(
   "Y"="Year",
   "MNCS" = "Nitrogen", "MNCA" = "Nitrogen", "M1" = "Nitrogen", "M2" = "Nitrogen",
@@ -293,8 +299,9 @@ component_colors <- c(
   "Percolation" = "#985aa1"
 )
 
-## --- 4. Perform Marginal Effect Analysis ----
-# run functions in 1_fgk_NLES5.R to environment first so we can call them in the loop without overhead
+
+### 1.2.4. Perform Marginal Effect Analysis ----
+# run functions NLES5 in step 0 to environment first so we can call them in the loop without overhead
 marginal_effects_results <- list()
 input_variables_to_test <- names(base_data)
 
@@ -342,11 +349,11 @@ final_results_df <- bind_rows(marginal_effects_results) |>
     Component = factor(Component, levels = names(component_colors))
   )
 
-## --- 5. Plotting: Faceted Marginal Effects ----
+### 1.2.5.1 Plotting: Faceted Marginal Effects ----
 
 # We split the plot logic slightly: Lines for continuous, Points for categorical
 p_marginal <- ggplot(final_results_df, 
-                     aes(x = original_value, y = L, color = Component)) +
+                     aes(x = original_value, y = L, color = Component)) # 
   # Add lines for continuous variables
   geom_line(data = filter(final_results_df, !Is_Categorical), linewidth = 1) +
   # Add points for categorical variables
@@ -375,7 +382,7 @@ print(p_marginal)
 #        units = "mm", width = 250, height = 200, dpi = 300)
 
 
-## --- 5. Plotting: Separated Percolation Marginal Effects ----
+### 1.2.5.2 Plotting: Separated Percolation Marginal Effects ----
 
 p_marginal_cont_sub <- final_results_df |>
   filter(!Is_Categorical & Component %in% c("Percolation" ,"Soil")) |> 
@@ -436,17 +443,18 @@ print(p_composite)
 ggsave("unified_marginal_effects.png", plot = p_composite, 
        units = "mm", width = 300, height = 180, dpi = 300)
 
-# Exploratory percolation distribution ----
+
+## 1.3 Exploratory percolation distribution ----
 
 # Define the requested Mustard (Sandy) and Reddish-Brown (Loamy) colors
 soil_palette <- c(
-  "Sandy (JB <= 3)" = "#E1AD01", 
-  "Loamy (JB > 3)"  = "#8F4513"  
+  "JB 1-3" = "#E1AD01", 
+  "JB 4-7"  = "#8F4513"  
 )
 
 # 1. Prepare Data and Calculate Full Statistics (Q1, Median, Mean, Q3)
 plot_data <- base_data |> 
-  mutate(JB = ifelse(jbnr <= 3, "Sandy (JB <= 3)", "Loamy (JB > 3)")) |> 
+  mutate(JB = ifelse(jbnr <= 3, "JB 1-3", "JB 4-7")) |> 
   pivot_longer(cols = c(AAa, AAb, APb), 
                names_to = "Percolation_Var", values_to = "Value") |> 
   mutate(Percolation_Var = factor(Percolation_Var,
@@ -514,9 +522,12 @@ print(composed_fig)
 ggsave("perc_dist_composite.png", 
        composed_fig, width = 18, height = 15, dpi = 600)
 
-# Marginal effects for percolation variables only, split by soil type (jbnr) ----
-## --- 1. Filter for Percolation Continuous Variables ----
-percolation_vars <- c("AAa", "AAb", "APb")
+
+
+## 1.4 Marginal effects for percolation variables only, split by soil type (jbnr) ----
+
+### 1.4.1. Filter for Percolation Continuous Variables ----
+percolation_vars <- c( "APb","AAa", "AAb")
 jbnr_levels <- c(3, 4) # 0 = Sandy (<=3), 1 = Loamy (>3)
 
 perc_sensitivity_results <- list()
@@ -549,7 +560,7 @@ for (var_to_vary in percolation_vars) {
       
       varied_variable = var_to_vary,
       original_value = .data[[var_to_vary]],
-      soil_type = ifelse(jbnr <= 3, "Sandy (JB <= 3)", "Loamy (JB > 3)")
+      soil_type = ifelse(jbnr <= 3, "JB 1-3", "JB 4-7")
     ) |>
     ungroup() |>
     select(varied_variable, original_value, L, P_est, soil_type)
@@ -558,7 +569,10 @@ for (var_to_vary in percolation_vars) {
 }
 
 # Combine results
-perc_comparison_df <- bind_rows(perc_sensitivity_results)
+perc_comparison_df <- bind_rows(perc_sensitivity_results) |> 
+  mutate(varied_variable = factor(varied_variable,
+                                  levels = c("APb","AAa", "AAb")))
+
 
 # 1. Define Scaling Factor
 # L is roughly 200 times larger than P_est in NLES5 outputs.
@@ -601,16 +615,21 @@ p_dual_axis <- ggplot(perc_comparison_df, aes(x = original_value)) +
 
 print(p_dual_axis)
 
-### Point wise check: Is the model actually sensitive to jbnr? ----
+
+### 1.4.2. Point wise check: Is the model actually sensitive to jbnr? ----
 P_func(jbnr = 3, AAa = 60, AAb = 350, APb = 350)/P_func(jbnr = 4, AAa = 60, AAb = 350, APb = 350)
 
 
-## 3. Gap Analysis ----
+
+## 1.5 Interaction P and and JB categories ----
+
+### 1.5.1 Gap Analysis ----
 # Data processing for Gap and Slope
 soil_gap <- perc_comparison_df |>
+  filter(original_value>=0) |> 
   select(varied_variable, original_value, L, soil_type) |>
   pivot_wider(names_from = soil_type, values_from = L) |>
-  rename(L_sandy = `Sandy (JB <= 3)`, L_loamy = `Loamy (JB > 3)`) |>
+  rename(L_sandy = `JB 1-3`, L_loamy = `JB 4-7`) |>
   mutate(
     L_diff = L_sandy - L_loamy,
     slope_sandy = (L_sandy - lag(L_sandy)) / (original_value - lag(original_value)),
@@ -625,21 +644,23 @@ p_gap <- ggplot(soil_gap, aes(x = original_value)) +
   facet_wrap(~ varied_variable, scales = "free_x") +
   labs(
     #title = "The 'Sandy Soil Penalty'",
-    subtitle = "Difference in Leaching (ΔL= L (Sandy) - L (Loamy)) across percolation",
+    subtitle = "Difference in Leaching (ΔL= L (JB 1-3) - L (JB 4-7)) across percolation",
     x = "Percolation (mm)",
-    y = "Sandy penalty (ΔL; kg N/ha)"
+    y = "JB 1-3 penalty (ΔL; kg N/ha)"
   ) +
-  theme_minimal()+
-  theme(
-    strip.text = element_text(face = "bold", size = 11),
-    plot.subtitle = element_text(size = 10, color = "grey40", hjust = 0.5),
-  )
+  theme_minimal() + 
+  theme(legend.position = "bottom", 
+        plot.title = element_text(size = 12, face = "bold", hjust = 0.5),
+        plot.subtitle = element_text(size = 10, color = "grey40", hjust = 0.5))
+
 
 print(p_gap)
 
-## 4.  Slopes Analysis  Compare the"jumps" (Sensitivities) ----
+
+### 1.5.2  Slopes Analysis  Compare the"jumps" (Sensitivities) ----
 # This explains IF one soil type reacts more aggressively to rain than the other
 slope_long <- soil_gap |>
+  filter(original_value>20) |> 
   select(varied_variable, original_value, slope_sandy, slope_loamy) |>
   pivot_longer(cols = starts_with("slope"), names_to = "soil_type", values_to = "slope_val")
 
@@ -648,7 +669,7 @@ p_slope_comp <- ggplot(slope_long, aes(x = original_value, y = slope_val, color 
   facet_wrap(~ varied_variable, scales = "free") +
   scale_color_manual(
     values = c("slope_sandy" = "#E1AD01", "slope_loamy" = "#8B4513"),
-    labels = c("Sandy Sensitivity", "Loamy Sensitivity")
+    labels = c("JB 1-3 Sensitivity", "JB 4-7 Sensitivity")
   ) +
   labs(
     #title = "Marginal Sensitivity Comparison",
@@ -657,7 +678,10 @@ p_slope_comp <- ggplot(slope_long, aes(x = original_value, y = slope_val, color 
     y = "Slope (ΔL / ΔPerc)",
     color = "Soil Category"
   ) +
-  theme_minimal() + theme(legend.position = "bottom", plot.subtitle = element_text(size = 10, color = "grey40", hjust = 0.5))
+  theme_minimal() + 
+  theme(legend.position = "bottom", 
+        plot.title = element_text(size = 12, face = "bold", hjust = 0.5),
+        plot.subtitle = element_text(size = 10, color = "grey40", hjust = 0.5))
 
 print(p_slope_comp)
 
@@ -670,7 +694,8 @@ p_slope_comp + p_gap + plot_layout(ncol = 1) + plot_annotation(
   )
 )
 
-## 5 Maximum differences ----
+
+### 1.5.3 Maximum differences ----
 # Final Summary Stats for Interpretation
 summary_results <- soil_gap |>
   group_by(varied_variable) |>
@@ -684,8 +709,7 @@ summary_results <- soil_gap |>
 print(summary_results)
 
 
-library(tidyverse)
-
+# 2. Others ----
 # 1. Identify the 10mm Sensitivity
 # We use the previously calculated slope (dL/dPerc) and multiply by 10
 jump_10mm_data <- soil_gap |>
@@ -699,9 +723,9 @@ jump_10mm_data <- soil_gap |>
 # 2. Visualize the 10mm Jump comparison
 p_jump <- ggplot(jump_10mm_data, aes(x = original_value)) +
   # Area for Sandy jump
-  geom_area(aes(y = Jump_Sandy, fill = "Sandy (JB <= 3)"), alpha = 0.4) +
+  geom_area(aes(y = Jump_Sandy, fill = "JB 1-3"), alpha = 0.4) +
   # Area for Loamy jump
-  geom_area(aes(y = Jump_Loamy, fill = "Loamy (JB > 3)"), alpha = 0.4) +
+  geom_area(aes(y = Jump_Loamy, fill = "JB 4-7"), alpha = 0.4) +
   facet_wrap(~ varied_variable, scales = "free_x") +
   scale_fill_manual(values = soil_palette) +
   labs(
