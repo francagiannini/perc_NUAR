@@ -154,7 +154,7 @@ C_func <- function(M, W, MP, WP) {
 }
 
 ### S component ----
-S_func <-  function(P_ler=0.001849, CU){
+S_func <-  function(P_ler=-0.001849, CU){ #corrected after CDB observation on bestilling comments
   
   S <- exp(P_ler*CU)
   
@@ -353,7 +353,7 @@ final_results_df <- bind_rows(marginal_effects_results) |>
 
 # We split the plot logic slightly: Lines for continuous, Points for categorical
 p_marginal <- ggplot(final_results_df, 
-                     aes(x = original_value, y = L, color = Component)) # 
+                     aes(x = original_value, y = L, color = Component))+ # 
   # Add lines for continuous variables
   geom_line(data = filter(final_results_df, !Is_Categorical), linewidth = 1) +
   # Add points for categorical variables
